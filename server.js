@@ -1,6 +1,4 @@
 var API = require('./etherdelta.github.io/api.js');
-var ejs = require('ejs');
-var date = require('datejs');
 var app = require('express')();
 var http = require('http').Server(app);
 
