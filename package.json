@@ -3,7 +3,8 @@
   "description": "EtherDelta Public API",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "cd etherdelta.github.io && npm install && cd etherdelta.github.io/common && npm install"
   },
   "dependencies": {
     "express": "4.10.2"
