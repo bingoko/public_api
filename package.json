@@ -4,7 +4,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "cd etherdelta.github.io && npm install && cd common && npm install"
+    "postinstall": "cd etherdelta.github.io && npm install && git submodule init && git submodule update && cd common && npm install"
   },
   "dependencies": {
     "express": "4.10.2"
