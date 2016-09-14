@@ -1,0 +1,11 @@
+{
+  "name": "public_api",
+  "description": "EtherDelta Public API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "4.10.2",
+  }
+}
