@@ -1,20 +1,39 @@
-var API = require('./api.js');
+var API = require('./etherdelta.github.io/api.js');
 var ejs = require('ejs');
 var date = require('datejs');
+var app = require('express')();
+var http = require('http').Server(app);
 
-var tickers = {};
-var firstOldPrices = {};
+var returnTickerData = undefined;
 
-API.init(function(err,result){
-  API.getTrades(function(err, result){
-    try {
+app.get('/returnTicker', function(req, res){
+  if (!returnTickerData || Date.now()-returnTickerData.updated>1000*60*5) {
+    returnTicker(function(result){
+      returnTickerData = {updated: Date.now(), result: result};
+      res.json(returnTickerData.result);
+    })
+  } else {
+    res.json(returnTickerData.result);
+  }
+});
+
+var port = process.env.PORT || 3000;
+http.listen(port, function(){
+  console.log('listening on port '+port);
+});
+
+function returnTicker(callback) {
+  var tickers = {};
+  var firstOldPrices = {};
+  API.init(function(err,result){
+    API.getTrades(function(err, result){
       var trades = result.trades;
       trades.sort(function(a,b){return a.blockNumber-b.blockNumber});
       trades.forEach(function(trade){
         if (trade.token && trade.base && trade.base.name=='ETH') {
           var pair = trade.base.name+'_'+trade.token.name;
           if (!tickers[pair]) {
-            tickers[pair] = {"last":undefined,"lowestAsk":undefined,"highestBid":undefined,"percentChange":undefined,
+            tickers[pair] = {"last":undefined,"percentChange":undefined,
 "baseVolume":0,"quoteVolume":0};
           }
           var tradeTime = API.blockTime(trade.blockNumber);
@@ -32,9 +51,7 @@ API.init(function(err,result){
           }
         }
       });
-      console.log(tickers);
-    } catch (err) {
-      console.log(err)
-    }
-  });
-}, true);
+      callback(tickers);
+    });
+  }, true, './etherdelta.github.io/');
+}
