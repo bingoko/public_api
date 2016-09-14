@@ -1,0 +1,3 @@
+[submodule "etherdelta.github.io"]
+	path = etherdelta.github.io
+	url = https://github.com/etherdelta/etherdelta.github.io.git
