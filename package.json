@@ -1,4 +1,4 @@
-{
+{ 
   "name": "public_api",
   "description": "EtherDelta Public API",
   "main": "server.js",
