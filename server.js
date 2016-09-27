@@ -5,7 +5,7 @@ var http = require('http').Server(app);
 var returnTickerData = undefined;
 
 app.get('/returnTicker', function(req, res){
-  if (!returnTickerData || Date.now()-returnTickerData.updated>1000*5*1) {
+  if (!returnTickerData || Date.now()-returnTickerData.updated>1000*60*5) {
     returnTicker(function(result){
       returnTickerData = {updated: Date.now(), result: result};
       res.json(returnTickerData.result);
