@@ -15,15 +15,17 @@ app.get('/returnTicker', function(req, res){
   }
 });
 
-var port = process.env.PORT || 3000;
-http.listen(port, function(){
-  console.log('listening on port '+port);
-});
+API.init(function(err,result){
+  var port = process.env.PORT || 3000;
+  http.listen(port, function(){
+    console.log('listening on port '+port);
+  });
+}, true, './etherdelta.github.io/');
 
 function returnTicker(callback) {
   var tickers = {};
   var firstOldPrices = {};
-  API.init(function(err,result){
+  API.logs(function(err, result){
     API.getTrades(function(err, result){
       var trades = result.trades;
       trades.sort(function(a,b){return a.blockNumber-b.blockNumber});
@@ -32,7 +34,7 @@ function returnTicker(callback) {
           var pair = trade.base.name+'_'+trade.token.name;
           if (!tickers[pair]) {
             tickers[pair] = {"last":undefined,"percentChange":0,
-"baseVolume":0,"quoteVolume":0};
+  "baseVolume":0,"quoteVolume":0};
           }
           var tradeTime = API.blockTime(trade.blockNumber);
           var price = Number(trade.price);
@@ -51,5 +53,5 @@ function returnTicker(callback) {
       });
       callback(tickers);
     });
-  }, true, './etherdelta.github.io/');
+  });
 }
