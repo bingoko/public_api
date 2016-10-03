@@ -41,8 +41,8 @@ function returnTicker(callback) {
           tickers[pair].last = price;
           if (!firstOldPrices[pair]) firstOldPrices[pair] = price;
           if (Date.now()-tradeTime.getTime() < 86400*1000*1) {
-            var quoteVolume = Number(API.utility.weiToEth(Math.abs(trade.amount), trade.token.divisor));
-            var baseVolume = Number(API.utility.weiToEth(Math.abs(trade.amount * trade.price), trade.base.divisor));
+            var quoteVolume = Number(API.utility.weiToEth(Math.abs(trade.amount), API.getDivisor(trade.token)));
+            var baseVolume = Number(API.utility.weiToEth(Math.abs(trade.amount * trade.price), API.getDivisor(trade.token)));
             tickers[pair].quoteVolume += quoteVolume;
             tickers[pair].baseVolume += baseVolume;
             tickers[pair].percentChange = (price - firstOldPrices[pair]) / firstOldPrices[pair];
