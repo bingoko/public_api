@@ -33,8 +33,7 @@ function returnTicker(callback) {
         if (trade.token && trade.base && trade.base.name=='ETH') {
           var pair = trade.base.name+'_'+trade.token.name;
           if (!tickers[pair]) {
-            tickers[pair] = {"last":undefined,"percentChange":0,
-  "baseVolume":0,"quoteVolume":0};
+            tickers[pair] = {"last":undefined,"percentChange":0,"baseVolume":0,"quoteVolume":0};
           }
           var tradeTime = API.blockTime(trade.blockNumber);
           var price = Number(trade.price);
