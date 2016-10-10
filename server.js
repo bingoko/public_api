@@ -3,6 +3,7 @@ var app = require('express')();
 var http = require('http').Server(app);
 
 var returnTickerData = undefined;
+var orderBookData = undefined;
 
 app.get('/returnTicker', function(req, res){
   if (!returnTickerData || Date.now()-returnTickerData.updated>1000*60*5) {
@@ -12,6 +13,17 @@ app.get('/returnTicker', function(req, res){
     })
   } else {
     res.json(returnTickerData.result);
+  }
+});
+
+app.get('/orderBook', function(req, res){
+  if (!orderBookData || Date.now()-orderBookData.updated>1000*10) {
+    API.getOrderBook(function(err, result){
+      orderBookData = {updated: Date.now(), result: result};
+      res.json(orderBookData.result);
+    })
+  } else {
+    res.json(orderBookData.result);
   }
 });
 
