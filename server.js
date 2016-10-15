@@ -1,7 +1,7 @@
 var API = require('./etherdelta.github.io/api.js');
 var bodyParser = require('body-parser')
 var app = require('express')();
-var http = require('http');
+var http = require('http').Server(app);
 
 var messagesFile = 'messages.json';
 var messagesData = undefined;
