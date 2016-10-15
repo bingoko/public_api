@@ -6,8 +6,8 @@ server {
 	server_name etherdelta.com www.etherdelta.com api.etherdelta.com;
 	ssl on;
 
-	ssl_certificate /certs/fullchain.crt;
-	ssl_certificate_key /certs/privkey.key;
+	ssl_certificate /certs/fullchain.pem;
+	ssl_certificate_key /certs/privkey.pem;
 	ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
 	ssl_prefer_server_ciphers on;
 	ssl_ciphers 'EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH';
