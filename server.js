@@ -1,9 +1,19 @@
 var API = require('./etherdelta.github.io/api.js');
+var bodyParser = require('body-parser')
 var app = require('express')();
-var http = require('http').Server(app);
+var http = require('http');
 
+var messagesFile = 'messages.json';
+var messagesData = undefined;
 var returnTickerData = undefined;
 var orderBookData = undefined;
+
+app.use( bodyParser.json() );
+app.use(bodyParser.urlencoded({extended: true}));
+
+app.get('/', function(req, res){
+  res.redirect('https://etherdelta.github.io')
+});
 
 app.get('/returnTicker', function(req, res){
   if (!returnTickerData || Date.now()-returnTickerData.updated>1000*60*5) {
@@ -25,6 +35,31 @@ app.get('/orderBook', function(req, res){
   } else {
     res.json(orderBookData.result);
   }
+});
+
+app.get('/messages', function(req, res){
+  if (messagesData) {
+    res.json(messagesData);
+  } else {
+    API.utility.readFile(messagesFile, function(err, result){
+      messagesData = !err ? result : [];
+      res.json(messagesData);
+    });
+  }
+});
+
+app.post('/message', function(req, res){
+  var message = req.body.message;
+  messagesData.push(message);
+  API.utility.writeFile(messagesFile, messagesData, function(err, result){
+    res.json(messagesData);
+  })
+});
+
+app.use(function(err, req, res, next){
+  console.error(err);
+  res.status(500);
+  res.json({'error': 'An error occurred.'});
 });
 
 API.init(function(err,result){

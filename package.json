@@ -1,5 +1,5 @@
-{ 
-  "name": "public_api", 
+{
+  "name": "public_api",
   "description": "EtherDelta Public API",
   "main": "server.js",
   "scripts": {
@@ -7,6 +7,7 @@
     "postinstall": "cd etherdelta.github.io && npm install && cd common && npm install"
   },
   "dependencies": {
-    "express": "4.10.2"
+    "body-parser": "^1.15.2",
+    "express": "4.10.2",
   }
 }
