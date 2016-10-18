@@ -7,6 +7,7 @@
     "postinstall": "cd etherdelta.github.io && npm install && cd common && npm install"
   },
   "dependencies": {
+    "async": "^2.1.2",
     "body-parser": "^1.15.2",
     "express": "4.10.2"
   }
