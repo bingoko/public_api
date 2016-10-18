@@ -1,5 +1,8 @@
 .DS_Store
 node_modules
 .node*
-storage_*
+storage_deadOrdersCache
+storage_eventsCache
+storage_gitterMessagesCache
+storage_ordersCache
 report*
