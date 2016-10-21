@@ -3,18 +3,12 @@ var API = require('./etherdelta.github.io/api.js');
 var bodyParser = require('body-parser');
 var async = require('async');
 var sha256 = require('sha256');
-var session = require('express-session');
 var app = require('express')();
 var http = require('http').Server(app);
 
+var lastOrdersHash = {};
 var returnTickerData = {result: undefined};
 var ordersData = {result: undefined};
-
-app.use(session({
-  secret: Math.random().toString().slice(2),
-  resave: false,
-  saveUninitialized: true
-}));
 
 app.use( bodyParser.json() );
 app.use(bodyParser.urlencoded({extended: true}));
@@ -35,22 +29,14 @@ app.get('/returnTicker', function(req, res){
 
 app.get('/orders', function(req, res){
   var ordersHash = sha256(JSON.stringify(ordersData));
-  var nonce = 0;
-  if (!req.session.lastOrdersHash) req.session.lastOrdersHash = {};
-  if (req.session.lastOrdersHash[nonce] != ordersHash) {
-    req.session.lastOrdersHash[nonce] = ordersHash;
-    res.json(ordersData.result);
-  } else {
-    res.json(undefined);
-  }
+  res.json(ordersData.result);
 });
 
 app.get('/orders/:nonce', function(req, res){
   var ordersHash = sha256(JSON.stringify(ordersData));
   var nonce = req.params.nonce;
-  if (!req.session.lastOrdersHash) req.session.lastOrdersHash = {};
-  if (req.session.lastOrdersHash[nonce] != ordersHash) {
-    req.session.lastOrdersHash[nonce] = ordersHash;
+  if (lastOrdersHash[nonce] != ordersHash) {
+    lastOrdersHash[nonce] = ordersHash;
     res.json(ordersData.result);
   } else {
     res.json(undefined);
