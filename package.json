@@ -9,6 +9,8 @@
   "dependencies": {
     "async": "^2.1.2",
     "body-parser": "^1.15.2",
-    "express": "4.10.2"
+    "express": "4.10.2",
+    "express-session": "^1.14.1",
+    "sha256": "^0.2.0"
   }
 }
