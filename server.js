@@ -28,7 +28,6 @@ app.get('/returnTicker', function(req, res){
 });
 
 app.get('/orders', function(req, res){
-  var ordersHash = sha256(JSON.stringify(ordersData));
   res.json(ordersData.result);
 });
 
