@@ -6,3 +6,4 @@ storage_eventsCache
 storage_gitterMessagesCache
 storage_ordersCache
 report*
+provider
