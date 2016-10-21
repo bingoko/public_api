@@ -32,7 +32,7 @@ app.get('/orders', function(req, res){
 });
 
 app.get('/orders/:nonce', function(req, res){
-  var ordersHash = sha256(JSON.stringify(ordersData));
+  var ordersHash = sha256(JSON.stringify(ordersData.result ? ordersData.result.orders : ''));
   var nonce = req.params.nonce;
   if (lastOrdersHash[nonce] != ordersHash) {
     lastOrdersHash[nonce] = ordersHash;
