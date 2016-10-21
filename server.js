@@ -2,6 +2,7 @@ global.network = "1";
 var API = require('./etherdelta.github.io/api.js');
 var bodyParser = require('body-parser');
 var async = require('async');
+var fs = require('fs');
 var sha256 = require('sha256');
 var app = require('express')();
 var http = require('http').Server(app);
@@ -83,10 +84,13 @@ function updateData() {
   });
 }
 
-API.init(function(err,result){
-  updateData();
-  var port = process.env.PORT || 3000;
-  http.listen(port, function(){
-    console.log('listening on port '+port);
-  });
-}, true, './etherdelta.github.io/');
+fs.readFile('provider',{ encoding: 'utf8' }, function(err, data) {
+  var provider = data;
+  API.init(function(err,result){
+    updateData();
+    var port = process.env.PORT || 3000;
+    http.listen(port, function(){
+      console.log('listening on port '+port);
+    });
+  }, true, './etherdelta.github.io/', provider);
+});
