@@ -1,4 +1,4 @@
-global.network = "1";
+// global.network = "1";
 var API = require('./etherdelta.github.io/api.js');
 var bodyParser = require('body-parser');
 var async = require('async');
@@ -62,25 +62,29 @@ app.use(function(err, req, res, next){
 
 function updateData() {
   API.logs(function(err, result){
-    async.parallel(
-      [
-        function(callback) {
-          API.getOrders(function(err, result){
-            ordersData = {updated: Date.now(), result: result};
-            callback(null, undefined);
-          });
-        },
-        function(callback) {
-          API.returnTicker(function(err, result){
-            returnTickerData = {updated: Date.now(), result: result};
-            callback(null, undefined);
-          });
+    try {
+      async.parallel(
+        [
+          function(callback) {
+            API.getOrders(function(err, result){
+              ordersData = {updated: Date.now(), result: result};
+              callback(null, undefined);
+            });
+          },
+          function(callback) {
+            API.returnTicker(function(err, result){
+              returnTickerData = {updated: Date.now(), result: result};
+              callback(null, undefined);
+            });
+          }
+        ],
+        function(err, result) {
+          setTimeout(updateData, 10*1000);
         }
-      ],
-      function(err, result) {
-        setTimeout(updateData, 10*1000);
-      }
-    );
+      );
+    } catch (err) {
+      console.log('err', err)
+    }
   });
 }
 
