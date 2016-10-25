@@ -1,4 +1,7 @@
-// global.network = "1";
+if (process.argv.length>2) {
+  global.network = String(process.argv[2]);
+  console.log(global.network)
+}
 var API = require('./etherdelta.github.io/api.js');
 var bodyParser = require('body-parser');
 var async = require('async');
