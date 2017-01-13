@@ -14,7 +14,7 @@ RUN cd /public_api/etherdelta.github.io && npm install
 ADD config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 ADD config/nginx.conf /etc/nginx/nginx.conf
 ADD sites-enabled/default /etc/nginx/sites-enabled/default
-ADD certs /certs
+ADD echo 1 && certs /certs
 
 EXPOSE 80
 EXPOSE 443
