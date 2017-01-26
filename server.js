@@ -13,6 +13,7 @@ var http = require('http').Server(app);
 var lastOrdersHash = {};
 var returnTickerData = {result: undefined};
 var ordersData = {result: undefined};
+var tradesData = {result: undefined};
 
 app.use( bodyParser.json() );
 app.use(bodyParser.urlencoded({extended: true}));
@@ -29,6 +30,10 @@ app.get('/', function(req, res){
 
 app.get('/returnTicker', function(req, res){
   res.json(returnTickerData.result);
+});
+
+app.get('/trades', function(req, res){
+  res.json(tradesData.result);
 });
 
 app.get('/orders', function(req, res){
@@ -73,6 +78,28 @@ function updateData() {
               API.getOrders(function(err, result){
                 if (!err) {
                   ordersData = {updated: Date.now(), result: result};
+                }
+                callback(null, undefined);
+              });
+            },
+            function(callback) {
+              API.getTrades(function(err, result){
+                if (!err) {
+                  var now = new Date();
+                  var trades = result.trades.map(x => {
+                    if (x.token && x.base && x.base.name=="ETH") {
+                      if (x.amount>0) {
+                        return {pair: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)), type: "buy", date: API.blockTime(x.blockNumber)}
+                      } else {
+                        return {token: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)), type: "sell", date: API.blockTime(x.blockNumber)}
+                      }
+                    } else {
+                      return undefined;
+                    }
+                  })
+                  .filter(x => x && now-x.date<86400*10*1000);
+                  trades.sort((a,b) => b.date-a.date);
+                  tradesData = {updated: Date.now(), result: trades};
                 }
                 callback(null, undefined);
               });
