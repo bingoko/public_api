@@ -15,6 +15,10 @@ var returnTickerData = {result: undefined};
 var ordersData = {result: undefined};
 var tradesData = {result: undefined};
 
+// var q = async.priorityQueue(function(task, callback) {
+//   task(callback);
+// }, 1);
+
 app.use( bodyParser.json() );
 app.use(bodyParser.urlencoded({extended: true}));
 
@@ -69,13 +73,17 @@ app.use(function(err, req, res, next){
 });
 
 function updateData() {
+  console.log('Getting logs')
   API.logs(function(err, result){
+    if (!err) console.log('Got logs')
     if (!err) {
       try {
         async.parallel(
           [
             function(callback) {
+              console.log('Getting orders')
               API.getOrders(function(err, result){
+                if (!err) console.log('Got orders')
                 if (!err) {
                   ordersData = {updated: Date.now(), result: result};
                 }
@@ -83,7 +91,9 @@ function updateData() {
               });
             },
             function(callback) {
+              console.log('Getting trades')
               API.getTrades(function(err, result){
+                if (!err) console.log('Got trades')
                 if (!err) {
                   var now = new Date();
                   var trades = result.trades.map(x => {
@@ -105,7 +115,9 @@ function updateData() {
               });
             },
             function(callback) {
+              console.log('Getting return ticker')
               API.returnTicker(function(err, result){
+                if (!err) console.log('Got return ticker')
                 if (!err) {
                   returnTickerData = {updated: Date.now(), result: result};
                 }
