@@ -10,14 +10,9 @@ var sha256 = require('sha256');
 var app = require('express')();
 var http = require('http').Server(app);
 
-var lastOrdersHash = {};
 var returnTickerData = {result: undefined};
-var ordersData = {result: undefined};
 var tradesData = {result: undefined};
-
-// var q = async.priorityQueue(function(task, callback) {
-//   task(callback);
-// }, 1);
+var lastOrdersHash = {};
 
 app.use( bodyParser.json() );
 app.use(bodyParser.urlencoded({extended: true}));
@@ -41,15 +36,17 @@ app.get('/trades', function(req, res){
 });
 
 app.get('/orders', function(req, res){
-  res.json(ordersData.result);
+  var result = {orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber}
+  res.json(result);
 });
 
 app.get('/orders/:nonce', function(req, res){
-  var ordersHash = sha256(JSON.stringify(ordersData.result ? ordersData.result.orders : ''));
+  var result = {orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber}
+  var ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
   var nonce = req.params.nonce;
   if (lastOrdersHash[nonce] != ordersHash) {
     lastOrdersHash[nonce] = ordersHash;
-    res.json(ordersData.result);
+    res.json(result);
   } else {
     res.json(undefined);
   }
@@ -58,8 +55,12 @@ app.get('/orders/:nonce', function(req, res){
 app.post('/message', function(req, res){
   try {
     var message = JSON.parse(req.body.message);
-    API.saveMessage(message, function(err, result){
-      res.json('success');
+    API.addOrderFromMessage(message, function(err, result){
+      if (!err) {
+        res.json('success');
+      } else {
+        res.json('failure');
+      }
     });
   } catch(err) {
     res.json('failure');
@@ -73,65 +74,74 @@ app.use(function(err, req, res, next){
 });
 
 function updateData() {
-  console.log('Getting logs')
-  API.logs(function(err, result){
-    if (!err) console.log('Got logs')
+  API.logs(function(err, newEvents){
     if (!err) {
-      try {
-        async.parallel(
-          [
-            function(callback) {
-              console.log('Getting orders')
-              API.getOrders(function(err, result){
-                if (!err) console.log('Got orders')
-                if (!err) {
-                  ordersData = {updated: Date.now(), result: result};
-                }
-                callback(null, undefined);
-              });
-            },
-            function(callback) {
-              console.log('Getting trades')
-              API.getTrades(function(err, result){
-                if (!err) console.log('Got trades')
-                if (!err) {
-                  var now = new Date();
-                  var trades = result.trades.map(x => {
-                    if (x.token && x.base && x.base.name=="ETH") {
-                      if (x.amount>0) {
-                        return {pair: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)), type: "buy", date: API.blockTime(x.blockNumber)}
+      async.each(
+        newEvents,
+        function(event, callbackEach) {
+          API.addOrderFromEvent(event, function(err, result){
+            callbackEach(null)
+          })
+        },
+        function(err) {
+          async.parallel(
+            [
+              function(callback) {
+                //refresh stale orders
+                var ids = Object.keys(API.ordersCache).filter(x => (new Date()-new Date(API.ordersCache[x].updated))>14*1000)
+                ids = ids.sort((a,b) => new Date(API.ordersCache[a].updated)-new Date(API.ordersCache[b].updated));
+                ids = ids.slice(0,500);
+                async.each(
+                  ids,
+                  function(id, callbackEach) {
+                    API.updateOrder(API.ordersCache[id], function(err, result){
+                      if (err) delete API.ordersCache[id];
+                      callbackEach(null)
+                    })
+                  },
+                  function(err) {
+                    callback(null, undefined);
+                  }
+                )
+              },
+              function(callback) {
+                API.getTrades(function(err, result){
+                  if (!err) {
+                    var now = new Date();
+                    var trades = result.trades.map(x => {
+                      if (x.token && x.base && x.base.name=="ETH") {
+                        if (x.amount>0) {
+                          return {pair: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)), type: "buy", date: API.blockTime(x.blockNumber)}
+                        } else {
+                          return {token: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)), type: "sell", date: API.blockTime(x.blockNumber)}
+                        }
                       } else {
-                        return {token: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)), type: "sell", date: API.blockTime(x.blockNumber)}
+                        return undefined;
                       }
-                    } else {
-                      return undefined;
-                    }
-                  })
-                  .filter(x => x && now-x.date<86400*10*1000);
-                  trades.sort((a,b) => b.date-a.date);
-                  tradesData = {updated: Date.now(), result: trades};
-                }
-                callback(null, undefined);
-              });
-            },
-            function(callback) {
-              console.log('Getting return ticker')
-              API.returnTicker(function(err, result){
-                if (!err) console.log('Got return ticker')
-                if (!err) {
-                  returnTickerData = {updated: Date.now(), result: result};
-                }
-                callback(null, undefined);
+                    }).filter(x => x && now-x.date<86400*10*1000);
+                    trades.sort((a,b) => b.date-a.date);
+                    tradesData = {updated: Date.now(), result: trades};
+                  }
+                  callback(null, undefined);
+                });
+              },
+              function(callback) {
+                API.returnTicker(function(err, result){
+                  if (!err) {
+                    returnTickerData = {updated: Date.now(), result: result};
+                  }
+                  callback(null, undefined);
+                });
+              }
+            ],
+            function(err, result) {
+              API.saveOrders(function(err, result){
+                setTimeout(updateData, 10*1000);
               });
             }
-          ],
-          function(err, result) {
-            setTimeout(updateData, 10*1000);
-          }
-        );
-      } catch (err) {
-        console.log('err', err)
-      }
+          );
+        }
+      )
     }
   });
 }
