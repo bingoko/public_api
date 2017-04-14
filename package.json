@@ -12,5 +12,10 @@
     "express": "4.10.2",
     "express-session": "^1.14.1",
     "sha256": "^0.2.0"
+  },
+  "devDependencies": {
+    "eslint": "^3.18.0",
+    "eslint-config-airbnb-base": "^11.1.2",
+    "eslint-plugin-import": "^2.2.0"
   }
 }

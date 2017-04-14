@@ -1,50 +1,49 @@
-if (process.argv.length>2) {
+if (process.argv.length > 2) {
   global.network = String(process.argv[2]);
-  console.log(global.network)
 }
-var API = require('./etherdelta.github.io/api.js');
-var bodyParser = require('body-parser');
-var async = require('async');
-var fs = require('fs');
-var sha256 = require('sha256');
-var app = require('express')();
-var http = require('http').Server(app);
+const API = require('./etherdelta.github.io/api.js');
+const bodyParser = require('body-parser');
+const async = require('async');
+const fs = require('fs');
+const sha256 = require('sha256');
+const app = require('express')();
+const http = require('http').Server(app);
 
-var returnTickerData = {result: undefined};
-var tradesData = {result: undefined};
-var lastOrdersHash = {};
+let returnTickerData = { result: undefined };
+let tradesData = { result: undefined };
+const lastOrdersHash = {};
 
-app.use( bodyParser.json() );
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
   next();
 });
 
-app.get('/', function(req, res){
-  res.redirect('https://etherdelta.github.io')
+app.get('/', (req, res) => {
+  res.redirect('https://etherdelta.github.io');
 });
 
-app.get('/returnTicker', function(req, res){
+app.get('/returnTicker', (req, res) => {
   res.json(returnTickerData.result);
 });
 
-app.get('/trades', function(req, res){
+app.get('/trades', (req, res) => {
   res.json(tradesData.result);
 });
 
-app.get('/orders', function(req, res){
-  var result = {orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber}
+app.get('/orders', (req, res) => {
+  const result = { orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber };
   res.json(result);
 });
 
-app.get('/orders/:nonce', function(req, res){
-  var result = {orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber}
-  var ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
-  var nonce = req.params.nonce;
-  if (lastOrdersHash[nonce] != ordersHash) {
+app.get('/orders/:nonce', (req, res) => {
+  const result = { orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber };
+  const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
+  const nonce = req.params.nonce;
+  if (lastOrdersHash[nonce] !== ordersHash) {
     lastOrdersHash[nonce] = ordersHash;
     res.json(result);
   } else {
@@ -52,107 +51,123 @@ app.get('/orders/:nonce', function(req, res){
   }
 });
 
-app.post('/message', function(req, res){
+app.post('/message', (req, res) => {
   try {
-    var message = JSON.parse(req.body.message);
-    API.addOrderFromMessage(message, function(err, result){
+    const message = JSON.parse(req.body.message);
+    API.addOrderFromMessage(message, (err) => {
       if (!err) {
         res.json('success');
       } else {
         res.json('failure');
       }
     });
-  } catch(err) {
+  } catch (err) {
     res.json('failure');
   }
 });
 
-app.use(function(err, req, res, next){
+app.use((err, req, res, next) => {
   console.error(err);
   res.status(500);
-  res.json({'error': 'An error occurred.'});
+  res.json({ error: 'An error occurred.' });
 });
 
 function updateData() {
-  API.logs(function(err, newEvents){
-    if (!err) {
+  API.logs((errLogs, newEvents) => {
+    if (!errLogs) {
       async.each(
         newEvents,
-        function(event, callbackEach) {
-          API.addOrderFromEvent(event, function(err, result){
-            callbackEach(null)
-          })
+        (event, callbackEach) => {
+          API.addOrderFromEvent(event, () => {
+            callbackEach(null);
+          });
         },
-        function(err) {
+        () => {
           async.parallel(
             [
-              function(callback) {
-                //refresh stale orders
-                var ids = Object.keys(API.ordersCache).filter(x => (new Date()-new Date(API.ordersCache[x].updated))>14*1000)
-                ids = ids.sort((a,b) => new Date(API.ordersCache[a].updated)-new Date(API.ordersCache[b].updated));
-                ids = ids.slice(0,500);
+              (callback) => {
+                // refresh stale orders
+                let ids = Object.keys(API.ordersCache).filter(
+                  x => new Date() - new Date(API.ordersCache[x].updated) > 14 * 1000);
+                ids = ids.sort(
+                  (a, b) =>
+                    new Date(API.ordersCache[a].updated) - new Date(API.ordersCache[b].updated));
+                ids = ids.slice(0, 500);
                 async.each(
                   ids,
-                  function(id, callbackEach) {
-                    API.updateOrder(API.ordersCache[id], function(err, result){
+                  (id, callbackEach) => {
+                    API.updateOrder(API.ordersCache[id], (err) => {
                       if (err) delete API.ordersCache[id];
-                      callbackEach(null)
-                    })
+                      callbackEach(null);
+                    });
                   },
-                  function(err) {
+                  () => {
                     callback(null, undefined);
-                  }
-                )
+                  });
               },
-              function(callback) {
-                API.getTrades(function(err, result){
+              (callback) => {
+                API.getTrades((err, result) => {
                   if (!err) {
-                    var now = new Date();
-                    var trades = result.trades.map(x => {
-                      if (x.token && x.base && x.base.name=="ETH") {
-                        if (x.amount>0) {
-                          return {pair: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)), type: "buy", date: API.blockTime(x.blockNumber)}
-                        } else {
-                          return {token: x.token.name+"-"+x.base.name, rate: x.price, amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)), type: "sell", date: API.blockTime(x.blockNumber)}
+                    const now = new Date();
+                    const trades = result.trades
+                      .map((x) => {
+                        if (x.token && x.base && x.base.name === 'ETH') {
+                          if (x.amount > 0) {
+                            return {
+                              pair: `${x.token.name}-${x.base.name}`,
+                              rate: x.price,
+                              amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)),
+                              type: 'buy',
+                              date: API.blockTime(x.blockNumber),
+                            };
+                          }
+                          return {
+                            token: `${x.token.name}-${x.base.name}`,
+                            rate: x.price,
+                            amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)),
+                            type: 'sell',
+                            date: API.blockTime(x.blockNumber),
+                          };
                         }
-                      } else {
                         return undefined;
-                      }
-                    }).filter(x => x && now-x.date<86400*10*1000);
-                    trades.sort((a,b) => b.date-a.date);
-                    tradesData = {updated: Date.now(), result: trades};
+                      })
+                      .filter(x => x && now - x.date < 86400 * 10 * 1000);
+                    trades.sort((a, b) => b.date - a.date);
+                    tradesData = { updated: Date.now(), result: trades };
                   }
                   callback(null, undefined);
                 });
               },
-              function(callback) {
-                API.returnTicker(function(err, result){
+              function (callback) {
+                API.returnTicker((err, result) => {
                   if (!err) {
-                    returnTickerData = {updated: Date.now(), result: result};
+                    returnTickerData = { updated: Date.now(), result };
                   }
                   callback(null, undefined);
                 });
-              }
+              },
             ],
-            function(err, result) {
-              API.saveOrders(function(err, result){
-                setTimeout(updateData, 10*1000);
+            () => {
+              API.saveOrders(() => {
+                setTimeout(updateData, 10 * 1000);
               });
-            }
-          );
-        }
-      )
+            });
+        });
     }
   });
 }
 
-fs.readFile('provider',{ encoding: 'utf8' }, function(err, data) {
-  var provider = data;
-  API.init(function(err,result){
-    updateData();
-    var port = process.env.PORT || 3000;
-    http.listen(port, function(){
-      console.log('listening on port '+port);
-    });
-  }, true, './etherdelta.github.io/', provider);
+fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
+  const provider = data;
+  API.init(
+    () => {
+      updateData();
+      const port = process.env.PORT || 3000;
+      http.listen(port, () => {
+        console.log(`listening on port ${port}`);
+      });
+    },
+    true,
+    './etherdelta.github.io/',
+    provider);
 });
