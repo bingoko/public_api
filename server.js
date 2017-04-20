@@ -1,6 +1,3 @@
-if (process.argv.length > 2) {
-  global.network = String(process.argv[2]);
-}
 const API = require('./etherdelta.github.io/api.js');
 const bodyParser = require('body-parser');
 const async = require('async');
