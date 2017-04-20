@@ -8,7 +8,7 @@ RUN apt-get -y install git supervisor nginx nodejs
 RUN apt-get clean
 RUN rm -rf /var/lib/apt/lists/*
 
-RUN echo 23 && git clone --recursive https://github.com/etherdelta/public_api.git
+RUN echo 24 && git clone --recursive https://github.com/etherdelta/public_api.git
 RUN cd /public_api && npm install
 RUN cd /public_api/etherdelta.github.io && npm install
 ADD config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
