@@ -70,10 +70,10 @@ app.use((err, req, res, next) => {
 });
 
 function updateData() {
-  API.logs((errLogs, newEvents) => {
+  API.logs((errLogs) => {
     if (!errLogs) {
       async.each(
-        newEvents,
+        Object.values(API.eventsCache),
         (event, callbackEach) => {
           API.addOrderFromEvent(event, () => {
             callbackEach(null);
