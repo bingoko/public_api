@@ -80,6 +80,7 @@ function updateData() {
           });
         },
         () => {
+          console.log('AAA')
           async.parallel(
             [
               (callback) => {
@@ -92,6 +93,7 @@ function updateData() {
                 ids = ids.slice(0, 500);
                 ids = ids.concat(Object.keys(API.ordersCache)
                   .filter(x => !API.ordersCache[x].updated));
+                console.log(ids.length)
                 async.each(
                   ids,
                   (id, callbackEach) => {
@@ -147,6 +149,7 @@ function updateData() {
               },
             ],
             () => {
+              console.log('done')
               API.saveOrders(() => {
                 setTimeout(updateData, 10 * 1000);
               });
@@ -166,7 +169,7 @@ fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
         console.log(`listening on port ${port}`);
       });
     },
-    true,
+    false,
     './etherdelta.github.io/',
     provider);
 });
