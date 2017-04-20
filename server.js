@@ -90,6 +90,8 @@ function updateData() {
                   (a, b) =>
                     new Date(API.ordersCache[a].updated) - new Date(API.ordersCache[b].updated));
                 ids = ids.slice(0, 500);
+                ids = ids.concat(Object.keys(API.ordersCache)
+                  .filter(x => !API.ordersCache[x].updated));
                 async.each(
                   ids,
                   (id, callbackEach) => {
