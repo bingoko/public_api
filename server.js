@@ -9,6 +9,8 @@ const http = require('http').Server(app);
 let returnTickerData = { result: undefined };
 let tradesData = { result: undefined };
 const lastOrdersHash = {};
+let topOrders = [];
+let ordersByPair = {};
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -36,12 +38,55 @@ app.get('/orders', (req, res) => {
   res.json(result);
 });
 
+app.get('/orders/:tokenA/:tokenB', (req, res) => {
+  const { tokenA, tokenB } = req.params;
+  const pair = `${tokenA}/${tokenB}`;
+  if (!ordersByPair[pair]) {
+    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB);
+  }
+  const result = { orders: ordersByPair[pair], blockNumber: API.blockTimeSnapshot.blockNumber };
+  res.json(result);
+});
+
+app.get('/topOrders', (req, res) => {
+  const result = { orders: topOrders, blockNumber: API.blockTimeSnapshot.blockNumber };
+  res.json(result);
+});
+
+app.get('/topOrders/:nonce', (req, res) => {
+  const result = { orders: topOrders, blockNumber: API.blockTimeSnapshot.blockNumber };
+  const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
+  const nonce = req.params.nonce;
+  if (lastOrdersHash[`top${nonce}`] !== ordersHash) {
+    lastOrdersHash[`top${nonce}`] = ordersHash;
+    res.json(result);
+  } else {
+    res.json(undefined);
+  }
+});
+
 app.get('/orders/:nonce', (req, res) => {
   const result = { orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber };
   const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
   const nonce = req.params.nonce;
   if (lastOrdersHash[nonce] !== ordersHash) {
     lastOrdersHash[nonce] = ordersHash;
+    res.json(result);
+  } else {
+    res.json(undefined);
+  }
+});
+
+app.get('/orders/:nonce/:tokenA/:tokenB', (req, res) => {
+  const { nonce, tokenA, tokenB } = req.params;
+  const pair = `${tokenA}/${tokenB}`;
+  if (!ordersByPair[pair]) {
+    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB);
+  }
+  const result = { orders: ordersByPair[pair], blockNumber: API.blockTimeSnapshot.blockNumber };
+  const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
+  if (lastOrdersHash[`${pair}${nonce}`] !== ordersHash) {
+    lastOrdersHash[`${pair}${nonce}`] = ordersHash;
     res.json(result);
   } else {
     res.json(undefined);
@@ -80,7 +125,6 @@ function updateData() {
           });
         },
         () => {
-          console.log('AAA')
           async.parallel(
             [
               (callback) => {
@@ -93,7 +137,6 @@ function updateData() {
                 ids = ids.slice(0, 500);
                 ids = ids.concat(Object.keys(API.ordersCache)
                   .filter(x => !API.ordersCache[x].updated));
-                console.log(ids.length)
                 async.each(
                   ids,
                   (id, callbackEach) => {
@@ -139,7 +182,7 @@ function updateData() {
                   callback(null, undefined);
                 });
               },
-              function (callback) {
+              (callback) => {
                 API.returnTicker((err, result) => {
                   if (!err) {
                     returnTickerData = { updated: Date.now(), result };
@@ -149,7 +192,8 @@ function updateData() {
               },
             ],
             () => {
-              console.log('done')
+              topOrders = API.getTopOrders();
+              ordersByPair = {};
               API.saveOrders(() => {
                 setTimeout(updateData, 10 * 1000);
               });
