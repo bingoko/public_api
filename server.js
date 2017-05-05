@@ -205,6 +205,7 @@ function updateData() {
 
 fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
   const provider = data;
+  const configName = process.argv.length > 2 ? process.argv[2] : undefined;
   API.init(
     () => {
       updateData();
@@ -215,5 +216,5 @@ fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
     },
     false,
     './etherdelta.github.io/',
-    provider);
+    provider, configName);
 });
