@@ -29,6 +29,11 @@ app.get('/returnTicker', (req, res) => {
   res.json(returnTickerData.result);
 });
 
+app.get('/events', (req, res) => {
+  const result = { events: API.eventsCache, blockNumber: API.blockTimeSnapshot.blockNumber };
+  res.json(result);
+});
+
 app.get('/trades', (req, res) => {
   res.json(tradesData.result);
 });
@@ -200,7 +205,7 @@ function updateData() {
             });
         });
     }
-  });
+  }, 43200); // one week of data
 }
 
 fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
