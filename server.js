@@ -8,7 +8,7 @@ const http = require('http').Server(app);
 
 let returnTickerData = { result: undefined };
 let tradesData = { result: undefined };
-const lastOrdersHash = {};
+const hashes = {};
 let topOrders = [];
 let ordersByPair = {};
 
@@ -32,6 +32,37 @@ app.get('/returnTicker', (req, res) => {
 app.get('/events', (req, res) => {
   const result = { events: API.eventsCache, blockNumber: API.blockTimeSnapshot.blockNumber };
   res.json(result);
+});
+
+app.get('/events/:nonce', (req, res) => {
+  const result = { events: API.eventsCache, blockNumber: API.blockTimeSnapshot.blockNumber };
+  const eventsHash = sha256(JSON.stringify(result.events ? result.events : ''));
+  const nonce = `events${req.params.nonce}`;
+  if (hashes[nonce] !== eventsHash) {
+    hashes[nonce] = eventsHash;
+    res.json(result);
+  } else {
+    res.json(undefined);
+  }
+});
+
+app.get('/events/:nonce/:since', (req, res) => {
+  const since = req.params.since;
+  const events = {};
+  Object.keys(API.eventsCache).forEach((id) => {
+    if (API.eventsCache[id].blockNumber >= since) {
+      events[id] = API.eventsCache[id];
+    }
+  });
+  const result = { events, blockNumber: API.blockTimeSnapshot.blockNumber };
+  const eventsHash = sha256(JSON.stringify(result.events ? result.events : ''));
+  const nonce = `eventsSince${req.params.nonce}`;
+  if (hashes[nonce] !== eventsHash) {
+    hashes[nonce] = eventsHash;
+    res.json(result);
+  } else {
+    res.json(undefined);
+  }
 });
 
 app.get('/trades', (req, res) => {
@@ -61,9 +92,9 @@ app.get('/topOrders', (req, res) => {
 app.get('/topOrders/:nonce', (req, res) => {
   const result = { orders: topOrders, blockNumber: API.blockTimeSnapshot.blockNumber };
   const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
-  const nonce = req.params.nonce;
-  if (lastOrdersHash[`top${nonce}`] !== ordersHash) {
-    lastOrdersHash[`top${nonce}`] = ordersHash;
+  const nonce = `topOrders${req.params.nonce}`;
+  if (hashes[nonce] !== ordersHash) {
+    hashes[nonce] = ordersHash;
     res.json(result);
   } else {
     res.json(undefined);
@@ -73,9 +104,9 @@ app.get('/topOrders/:nonce', (req, res) => {
 app.get('/orders/:nonce', (req, res) => {
   const result = { orders: API.ordersCache, blockNumber: API.blockTimeSnapshot.blockNumber };
   const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
-  const nonce = req.params.nonce;
-  if (lastOrdersHash[nonce] !== ordersHash) {
-    lastOrdersHash[nonce] = ordersHash;
+  const nonce = `orders${req.params.nonce}`;
+  if (hashes[nonce] !== ordersHash) {
+    hashes[nonce] = ordersHash;
     res.json(result);
   } else {
     res.json(undefined);
@@ -83,15 +114,16 @@ app.get('/orders/:nonce', (req, res) => {
 });
 
 app.get('/orders/:nonce/:tokenA/:tokenB', (req, res) => {
-  const { nonce, tokenA, tokenB } = req.params;
+  const { tokenA, tokenB } = req.params;
+  const nonce = `ordersPair${req.params.nonce}`;
   const pair = `${tokenA}/${tokenB}`;
   if (!ordersByPair[pair]) {
     ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB);
   }
   const result = { orders: ordersByPair[pair], blockNumber: API.blockTimeSnapshot.blockNumber };
   const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
-  if (lastOrdersHash[`${pair}${nonce}`] !== ordersHash) {
-    lastOrdersHash[`${pair}${nonce}`] = ordersHash;
+  if (hashes[nonce] !== ordersHash) {
+    hashes[nonce] = ordersHash;
     res.json(result);
   } else {
     res.json(undefined);
