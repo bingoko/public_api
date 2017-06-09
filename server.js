@@ -253,5 +253,5 @@ fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
     },
     false,
     './etherdelta.github.io/',
-    provider, configName);
+    provider, configName, (86400 * 14) / 7);
 });
