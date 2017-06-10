@@ -11,7 +11,7 @@ let tradesData = { result: undefined };
 const hashes = {};
 let topOrders = [];
 let ordersByPair = {};
-const lookback = (86400 * 14) / 7; // 7 days of events
+const lookback = (86400 * 1) / 14;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -192,68 +192,74 @@ function updateOrders() {
 }
 
 function updateData() {
-  API.logs((errLogs) => {
-    if (!errLogs) {
-      async.each(
-        Object.values(API.eventsCache),
-        (event, callbackEach) => {
-          API.addOrderFromEvent(event, () => {
+  API.getBlockNumber((errBlockNumber, blockNumber) => {
+    API.logs((errLogs) => {
+      if (!errLogs && !errBlockNumber) {
+        // delete old events
+        async.each(
+          Object.keys(API.eventsCache),
+          (key, callbackEach) => {
+            if (API.eventsCache[key].blockNumber < blockNumber - lookback) {
+              delete API.eventsCache[key];
+            }
             callbackEach(null);
-          });
-        },
-        () => {
-          async.parallel(
-            [
-              (callback) => {
-                API.getTrades((err, result) => {
-                  if (!err) {
-                    const now = new Date();
-                    const trades = result.trades
-                      .map((x) => {
-                        if (x.token && x.base && x.base.name === 'ETH') {
-                          if (x.amount > 0) {
+          },
+          () => {
+            async.parallel(
+              [
+                (callback) => {
+                  API.getTrades((err, result) => {
+                    if (!err) {
+                      const now = new Date();
+                      const trades = result.trades
+                        .map((x) => {
+                          if (x.token && x.base && x.base.name === 'ETH') {
+                            if (x.amount > 0) {
+                              return {
+                                pair: `${x.token.name}-${x.base.name}`,
+                                rate: x.price,
+                                amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)),
+                                type: 'buy',
+                                date: API.blockTime(x.blockNumber),
+                              };
+                            }
                             return {
-                              pair: `${x.token.name}-${x.base.name}`,
+                              token: `${x.token.name}-${x.base.name}`,
                               rate: x.price,
-                              amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)),
-                              type: 'buy',
+                              amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)),
+                              type: 'sell',
                               date: API.blockTime(x.blockNumber),
                             };
                           }
-                          return {
-                            token: `${x.token.name}-${x.base.name}`,
-                            rate: x.price,
-                            amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)),
-                            type: 'sell',
-                            date: API.blockTime(x.blockNumber),
-                          };
-                        }
-                        return undefined;
-                      })
-                      .filter(x => x && now - x.date < 86400 * 10 * 1000);
-                    trades.sort((a, b) => b.date - a.date);
-                    tradesData = { updated: Date.now(), result: trades };
-                  }
-                  callback(null, undefined);
-                });
-              },
-              (callback) => {
-                API.returnTicker((err, result) => {
-                  if (!err) {
-                    returnTickerData = { updated: Date.now(), result };
-                  }
-                  callback(null, undefined);
-                });
-              },
-            ],
-            () => {
-              topOrders = API.getTopOrders();
-              ordersByPair = {};
-              setTimeout(updateData, 10 * 1000);
-            });
-        });
-    }
-  }, lookback); // one week of data
+                          return undefined;
+                        })
+                        .filter(x => x && now - x.date < 86400 * 10 * 1000);
+                      trades.sort((a, b) => b.date - a.date);
+                      tradesData = { updated: Date.now(), result: trades };
+                    }
+                    callback(null, undefined);
+                  });
+                },
+                (callback) => {
+                  API.returnTicker((err, result) => {
+                    if (!err) {
+                      returnTickerData = { updated: Date.now(), result };
+                    }
+                    callback(null, undefined);
+                  });
+                },
+              ],
+              () => {
+                topOrders = API.getTopOrders();
+                ordersByPair = {};
+                setTimeout(updateData, 10 * 1000);
+              });
+          });
+      } else {
+        setTimeout(updateData, 10 * 1000);
+      }
+    }, lookback);
+  });
 }
 
 fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
