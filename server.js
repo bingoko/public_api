@@ -11,6 +11,7 @@ let tradesData = { result: undefined };
 const hashes = {};
 let topOrders = [];
 let ordersByPair = {};
+const lookback = (86400 * 14) / 7; // 7 days of events
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -151,6 +152,45 @@ app.use((err, req, res, next) => {
   res.json({ error: 'An error occurred.' });
 });
 
+function updateOrders() {
+  // refresh stale orders
+  async.forever(
+    (next) => {
+      let ids = Object.keys(API.ordersCache).filter(
+        x => new Date() - new Date(API.ordersCache[x].updated) > 14 * 1000);
+      console.log(new Date(), 'Order ids', ids.length);
+      ids = ids.sort(
+        (a, b) =>
+          new Date(API.ordersCache[a].updated) - new Date(API.ordersCache[b].updated));
+      ids = ids.slice(0, 1000);
+      console.log(new Date(), API.ordersCache[ids[0]].updated,
+        API.ordersCache[ids[ids.length - 1]].updated, ids.length);
+      ids = ids.concat(Object.keys(API.ordersCache)
+        .filter(x => !API.ordersCache[x].updated));
+      console.log(new Date(), 'Ids to update', ids.length);
+      async.eachLimit(
+        ids,
+        100,
+        (id, callbackEach) => {
+          API.updateOrder(API.ordersCache[id], (err) => {
+            // console.log(id, err);
+            if (err) delete API.ordersCache[id];
+            callbackEach(null);
+          });
+        },
+        () => {
+          API.saveOrders(() => {
+            setTimeout(() => {
+              next();
+            }, 5 * 1000);
+          });
+        });
+    },
+    (err) => {
+      console.log('Update order loop failed: ', err);
+    });
+}
+
 function updateData() {
   API.logs((errLogs) => {
     if (!errLogs) {
@@ -164,28 +204,6 @@ function updateData() {
         () => {
           async.parallel(
             [
-              (callback) => {
-                // refresh stale orders
-                let ids = Object.keys(API.ordersCache).filter(
-                  x => new Date() - new Date(API.ordersCache[x].updated) > 14 * 1000);
-                ids = ids.sort(
-                  (a, b) =>
-                    new Date(API.ordersCache[a].updated) - new Date(API.ordersCache[b].updated));
-                ids = ids.slice(0, 500);
-                ids = ids.concat(Object.keys(API.ordersCache)
-                  .filter(x => !API.ordersCache[x].updated));
-                async.each(
-                  ids,
-                  (id, callbackEach) => {
-                    API.updateOrder(API.ordersCache[id], (err) => {
-                      if (err) delete API.ordersCache[id];
-                      callbackEach(null);
-                    });
-                  },
-                  () => {
-                    callback(null, undefined);
-                  });
-              },
               (callback) => {
                 API.getTrades((err, result) => {
                   if (!err) {
@@ -231,13 +249,11 @@ function updateData() {
             () => {
               topOrders = API.getTopOrders();
               ordersByPair = {};
-              API.saveOrders(() => {
-                setTimeout(updateData, 10 * 1000);
-              });
+              setTimeout(updateData, 10 * 1000);
             });
         });
     }
-  }, 43200); // one week of data
+  }, lookback); // one week of data
 }
 
 fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
@@ -245,6 +261,7 @@ fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
   const configName = process.argv.length > 2 ? process.argv[2] : undefined;
   API.init(
     () => {
+      updateOrders();
       updateData();
       const port = process.env.PORT || 3000;
       http.listen(port, () => {
@@ -253,5 +270,5 @@ fs.readFile('provider', { encoding: 'utf8' }, (err, data) => {
     },
     false,
     './etherdelta.github.io/',
-    provider, configName, (86400 * 14) / 7);
+    provider, configName, lookback);
 });
