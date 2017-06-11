@@ -12,6 +12,7 @@ const hashes = {};
 let topOrders = [];
 let ordersByPair = {};
 const lookback = (86400 * 1) / 14;
+const examinedEvents = {};
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -152,24 +153,85 @@ app.use((err, req, res, next) => {
   res.json({ error: 'An error occurred.' });
 });
 
+function shuffle(array) {
+  let counter = array.length;
+  while (counter > 0) {
+    const index = Math.floor(Math.random() * counter);
+    counter -= 1;
+    const temp = array[counter];
+    array[counter] = array[index]; // eslint-disable-line no-param-reassign
+    array[index] = temp; // eslint-disable-line no-param-reassign
+  }
+  return array;
+}
+
 function updateOrders() {
   // refresh stale orders
   async.forever(
     (next) => {
       API.getBlockNumber((errBlockNumber, blockNumber) => {
         if (!errBlockNumber && blockNumber && blockNumber > 0) {
+          // remove expired orders
+          let expiredRemoves = 0;
           Object.keys(API.ordersCache).forEach((id) => {
             const order = API.ordersCache[id];
             const expires = order.order.expires;
             if (blockNumber > expires) {
               delete API.ordersCache[id];
+              expiredRemoves += 1;
             }
           });
+
+          // remove cancelled orders
+          let cancelRemoves = 0;
+          Object.keys(API.eventsCache).forEach((id) => {
+            const event = API.eventsCache[id];
+            if (event.event === 'Cancel' && !examinedEvents[id]) {
+              examinedEvents[id] = true;
+              const removes = Object.keys(API.ordersCache).filter((x) => {
+                const order = API.ordersCache[x];
+                return order.order.r === event.args.r &&
+                order.order.s === event.args.s &&
+                Number(order.order.v) === Number(event.args.v);
+              });
+              removes.forEach((remove) => {
+                delete API.eventsCache[remove];
+                cancelRemoves += 1;
+              });
+            }
+          });
+
+          const idsAll = Object.keys(API.ordersCache);
+          const ids = {};
+
+          // find events
+          const eventOrdersToUpdate = [];
+          Object.keys(API.eventsCache).forEach((id) => {
+            if (!examinedEvents[id]) {
+              const event = API.eventsCache[id];
+              if (event.event === 'Deposit' || event.event === 'Withdraw') {
+                Object.keys(API.ordersCache).forEach((x) => {
+                  const order = API.ordersCache[x];
+                  if (order.order.user === event.args.user) {
+                    eventOrdersToUpdate.push({ id: x, eventId: id });
+                  }
+                });
+              } else if (event.event === 'Trade') {
+                Object.keys(API.ordersCache).forEach((x) => {
+                  const order = API.ordersCache[x];
+                  if (order.order.user === event.args.get || order.order.user === event.args.give) {
+                    eventOrdersToUpdate.push({ id: x, eventId: id });
+                  }
+                });
+              }
+            }
+          });
+
           const buys = {};
           const sells = {};
           const pairs = {};
-          const ids = [];
           const topN = 5;
+          const topOrdersToUpdate = [];
           Object.keys(API.ordersCache).forEach((id) => {
             const order = API.ordersCache[id];
             if (order.amount > 0) {
@@ -188,29 +250,45 @@ function updateOrders() {
             sellOrders.sort((a, b) => a.order.price - b.order.price || a.order.id - b.order.id);
             buyOrders.sort((a, b) => b.order.price - a.order.price || a.order.id - b.order.id);
             buyOrders.slice(0, topN).forEach((order) => {
-              ids.push(order.id);
+              topOrdersToUpdate.push(order.id);
             });
             sellOrders.slice(0, topN).forEach((order) => {
-              ids.push(order.id);
+              topOrdersToUpdate.push(order.id);
             });
           });
 
-          const idsAll = Object.keys(API.ordersCache);
-          console.log(new Date(), 'Order ids', idsAll.length);
           idsAll.sort(
             (a, b) =>
               new Date(API.ordersCache[a].updated) - new Date(API.ordersCache[b].updated));
-          const idsOld = ids.slice(0, 100);
-          const idsToUpdate = ids.concat(idsOld);
-          console.log(new Date(), 'Ids to update', idsToUpdate.length);
+          idsAll.slice(0, 100).forEach((id) => {
+            ids[id] = true;
+          });
+          eventOrdersToUpdate.slice(0, 250).forEach((x) => {
+            examinedEvents[x.eventId] = true;
+            ids[x.id] = true;
+          });
+          shuffle(topOrdersToUpdate).slice(0, 250).forEach((id) => {
+            ids[id] = true;
+          });
+
+          console.log(new Date(), 'All order ids', idsAll.length);
+          console.log(new Date(), 'Removals (expired)', expiredRemoves);
+          console.log(new Date(), 'Removals (cancelled)', cancelRemoves);
+          console.log(new Date(), 'Ids to update via events', eventOrdersToUpdate.length);
+          console.log(new Date(), 'Ids to update because top of order book', topOrdersToUpdate.length);
+          console.log(new Date(), 'Ids to update', Object.keys(ids).length);
           async.eachSeries(
-            idsToUpdate,
+            ids,
             (id, callbackEach) => {
-              API.updateOrder(API.ordersCache[id], (err) => {
-                // console.log(id, err);
-                if (err) delete API.ordersCache[id];
+              if (API.ordersCache[id]) {
+                API.updateOrder(API.ordersCache[id], (err) => {
+                  // console.log(id, err);
+                  if (err) delete API.ordersCache[id];
+                  callbackEach(null);
+                });
+              } else {
                 callbackEach(null);
-              });
+              }
             },
             () => {
               API.saveOrders(() => {
