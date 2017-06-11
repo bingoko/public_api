@@ -205,22 +205,23 @@ function updateOrders() {
           const ids = {};
 
           // find events
-          const eventOrdersToUpdate = [];
+          const eventOrdersToUpdate = {};
           Object.keys(API.eventsCache).forEach((id) => {
             if (!examinedEvents[id]) {
+              eventOrdersToUpdate[id] = [];
               const event = API.eventsCache[id];
               if (event.event === 'Deposit' || event.event === 'Withdraw') {
                 Object.keys(API.ordersCache).forEach((x) => {
                   const order = API.ordersCache[x];
                   if (order.order.user === event.args.user) {
-                    eventOrdersToUpdate.push({ id: x, eventId: id });
+                    eventOrdersToUpdate[id].push(x);
                   }
                 });
               } else if (event.event === 'Trade') {
                 Object.keys(API.ordersCache).forEach((x) => {
                   const order = API.ordersCache[x];
                   if (order.order.user === event.args.get || order.order.user === event.args.give) {
-                    eventOrdersToUpdate.push({ id: x, eventId: id });
+                    eventOrdersToUpdate[id].push(x);
                   }
                 });
               }
@@ -263,9 +264,16 @@ function updateOrders() {
           idsAll.slice(0, 100).forEach((id) => {
             ids[id] = true;
           });
-          eventOrdersToUpdate.slice(0, 250).forEach((x) => {
-            examinedEvents[x.eventId] = true;
-            ids[x.id] = true;
+          let idsWithEvents = 0;
+          Object.keys(eventOrdersToUpdate).forEach((x) => {
+            const eventIds = eventOrdersToUpdate[x];
+            if (idsWithEvents + eventIds.length < 250) {
+              eventIds.forEach((id) => {
+                idsWithEvents += 1;
+                ids[id] = true;
+              });
+              examinedEvents[x] = true;
+            }
           });
           shuffle(topOrdersToUpdate).slice(0, 250).forEach((id) => {
             ids[id] = true;
@@ -274,9 +282,10 @@ function updateOrders() {
           console.log(new Date(), 'All order ids', idsAll.length);
           console.log(new Date(), 'Removals (expired)', expiredRemoves);
           console.log(new Date(), 'Removals (cancelled)', cancelRemoves);
-          console.log(new Date(), 'Ids to update via events', eventOrdersToUpdate.length);
+          console.log(new Date(), 'Events with ids to update', Object.keys(eventOrdersToUpdate).length);
+          console.log(new Date(), 'Ids to update via events', Object.values(eventOrdersToUpdate).map(x => x.length).reduce((a, b) => a + b, 0));
           console.log(new Date(), 'Ids to update because top of order book', topOrdersToUpdate.length);
-          console.log(new Date(), 'Ids to update', Object.keys(ids).length);
+          console.log(new Date(), 'Ids to update in this cycle', Object.keys(ids).length);
           async.eachSeries(
             ids,
             (id, callbackEach) => {
