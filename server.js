@@ -267,7 +267,7 @@ function updateOrders() {
           let idsWithEvents = 0;
           Object.keys(eventOrdersToUpdate).forEach((x) => {
             const eventIds = eventOrdersToUpdate[x];
-            if (idsWithEvents < 250) {
+            if (idsWithEvents + eventIds.length < 250) {
               eventIds.forEach((id) => {
                 idsWithEvents += 1;
                 ids[id] = true;
