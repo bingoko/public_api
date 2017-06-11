@@ -117,17 +117,17 @@ async.forever(
     async.parallel(
       [
         (cb) => {
-          fs.writeFile('storage_messagesCache', messages, () => {
+          fs.writeFile('storage_messagesCache', JSON.stringify(messages), () => {
             cb();
           });
         },
         (cb) => {
-          fs.writeFile('storage_eventsCache', events, () => {
+          fs.writeFile('storage_eventsCache', JSON.stringify(events), () => {
             cb();
           });
         },
         (cb) => {
-          fs.writeFile('storage_ordersCache', orders, () => {
+          fs.writeFile('storage_ordersCache', JSON.stringify(orders), () => {
             cb();
           });
         }],
