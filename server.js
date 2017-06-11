@@ -168,9 +168,8 @@ function updateOrders() {
       ids = ids.concat(Object.keys(API.ordersCache)
         .filter(x => !API.ordersCache[x].updated));
       console.log(new Date(), 'Ids to update', ids.length);
-      async.eachLimit(
+      async.eachSeries(
         ids,
-        100,
         (id, callbackEach) => {
           API.updateOrder(API.ordersCache[id], (err) => {
             // console.log(id, err);
