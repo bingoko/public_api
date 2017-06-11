@@ -156,34 +156,75 @@ function updateOrders() {
   // refresh stale orders
   async.forever(
     (next) => {
-      let ids = Object.keys(API.ordersCache).filter(
-        x => new Date() - new Date(API.ordersCache[x].updated) > 14 * 1000);
-      console.log(new Date(), 'Order ids', ids.length);
-      ids = ids.sort(
-        (a, b) =>
-          new Date(API.ordersCache[a].updated) - new Date(API.ordersCache[b].updated));
-      ids = ids.slice(0, 1000);
-      console.log(new Date(), API.ordersCache[ids[0]].updated,
-        API.ordersCache[ids[ids.length - 1]].updated, ids.length);
-      ids = ids.concat(Object.keys(API.ordersCache)
-        .filter(x => !API.ordersCache[x].updated));
-      console.log(new Date(), 'Ids to update', ids.length);
-      async.eachSeries(
-        ids,
-        (id, callbackEach) => {
-          API.updateOrder(API.ordersCache[id], (err) => {
-            // console.log(id, err);
-            if (err) delete API.ordersCache[id];
-            callbackEach(null);
+      API.getBlockNumber((errBlockNumber, blockNumber) => {
+        if (!errBlockNumber && blockNumber && blockNumber > 0) {
+          Object.keys(API.ordersCache).forEach((id) => {
+            const order = API.ordersCache[id];
+            const expires = order.order.expires;
+            if (blockNumber > expires) {
+              delete API.ordersCache[id];
+            }
           });
-        },
-        () => {
-          API.saveOrders(() => {
-            setTimeout(() => {
-              next();
-            }, 5 * 1000);
+          const buys = {};
+          const sells = {};
+          const pairs = {};
+          const ids = [];
+          const topN = 5;
+          Object.keys(API.ordersCache).forEach((id) => {
+            const order = API.ordersCache[id];
+            if (order.amount > 0) {
+              if (!buys[`${order.order.tokenGet}/${order.order.tokenGive}`]) buys[`${order.order.tokenGet}/${order.order.tokenGive}`] = [];
+              buys[`${order.order.tokenGet}/${order.order.tokenGive}`].push({ order, id });
+              pairs[`${order.order.tokenGet}/${order.order.tokenGive}`] = true;
+            } else if (order.amount < 0) {
+              if (!sells[`${order.order.tokenGive}/${order.order.tokenGet}`]) sells[`${order.order.tokenGive}/${order.order.tokenGet}`] = [];
+              sells[`${order.order.tokenGive}/${order.order.tokenGet}`].push({ order, id });
+              pairs[`${order.order.tokenGive}/${order.order.tokenGet}`] = true;
+            }
           });
-        });
+          Object.keys(pairs).forEach((pair) => {
+            const buyOrders = buys[pair] || [];
+            const sellOrders = sells[pair] || [];
+            sellOrders.sort((a, b) => a.order.price - b.order.price || a.order.id - b.order.id);
+            buyOrders.sort((a, b) => b.order.price - a.order.price || a.order.id - b.order.id);
+            buyOrders.slice(0, topN).forEach((order) => {
+              ids.push(order.id);
+            });
+            sellOrders.slice(0, topN).forEach((order) => {
+              ids.push(order.id);
+            });
+          });
+
+          const idsAll = Object.keys(API.ordersCache);
+          console.log(new Date(), 'Order ids', idsAll.length);
+          idsAll.sort(
+            (a, b) =>
+              new Date(API.ordersCache[a].updated) - new Date(API.ordersCache[b].updated));
+          const idsOld = ids.slice(0, 100);
+          const idsToUpdate = ids.concat(idsOld);
+          console.log(new Date(), 'Ids to update', idsToUpdate.length);
+          async.eachSeries(
+            idsToUpdate,
+            (id, callbackEach) => {
+              API.updateOrder(API.ordersCache[id], (err) => {
+                // console.log(id, err);
+                if (err) delete API.ordersCache[id];
+                callbackEach(null);
+              });
+            },
+            () => {
+              API.saveOrders(() => {
+                setTimeout(() => {
+                  next();
+                }, 1 * 1000);
+              });
+            });
+        } else {
+          setTimeout(() => {
+            next();
+          }, 1 * 1000);
+        }
+      });
     },
     (err) => {
       console.log('Update order loop failed: ', err);
