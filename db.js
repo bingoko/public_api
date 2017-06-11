@@ -16,17 +16,17 @@ let events = {};
 try {
   messages = JSON.parse(fs.readFileSync('storage_messagesCache', 'utf8'));
 } catch (err) {
-  console.log('Storage file not found');
+  console.log('Messages storage file not found');
 }
 try {
   orders = JSON.parse(fs.readFileSync('storage_ordersCache', 'utf8'));
 } catch (err) {
-  console.log('Storage file not found');
+  console.log('Orders storage file not found');
 }
 try {
   events = JSON.parse(fs.readFileSync('storage_eventsCache', 'utf8'));
 } catch (err) {
-  console.log('Storage file not found');
+  console.log('Events storage file not found');
 }
 
 app.get('/', (req, res) => {

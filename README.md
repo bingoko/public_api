@@ -3,7 +3,7 @@
  * `wget http://d1h4xl4cr1h0mo.cloudfront.net/v1.6.8/x86_64-unknown-linux-gnu/parity_1.6.8_amd64.deb`
  * `dpkg -i parity_1.6.8_amd64.deb`
  * `apt-get update`
- * `apt-get -y install software-properties-common curl build-essential nload vnstat`
+ * `apt-get -y install software-properties-common curl build-essential nload vnstat python`
  * `apt-get -y install git nginx`
  * `apt-get -y install build-essential libssl-dev`
  * `curl -sL https://raw.githubusercontent.com/creationix/nvm/v0.31.0/install.sh -o install_nvm.sh`
