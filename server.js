@@ -263,9 +263,11 @@ function updateOrders() {
           idsAll.slice(0, 100).forEach((id) => {
             ids[id] = true;
           });
-          shuffle(topOrdersToUpdate).slice(0, 250).forEach((id) => {
-          // topOrdersToUpdate.forEach((id) => {
-            ids[id] = true;
+          // shuffle(topOrdersToUpdate).slice(0, 250).forEach((id) => {
+          topOrdersToUpdate.forEach((id) => {
+            if (new Date() - new Date(API.ordersCache[id].updated) > 5 * 60 * 1000) {
+              ids[id] = true;
+            }
           });
           eventOrdersToUpdate.slice(0, 250).forEach((x) => {
             ids[x.id] = true;
