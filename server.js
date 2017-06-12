@@ -263,7 +263,8 @@ function updateOrders() {
           idsAll.slice(0, 100).forEach((id) => {
             ids[id] = true;
           });
-          shuffle(topOrdersToUpdate).slice(0, 250).forEach((id) => {
+          // shuffle(topOrdersToUpdate).slice(0, 250).forEach((id) => {
+          topOrdersToUpdate.forEach((id) => {
             ids[id] = true;
           });
           eventOrdersToUpdate.slice(0, 250).forEach((x) => {
@@ -278,11 +279,10 @@ function updateOrders() {
           console.log(new Date(), 'Ids to update because top of order book', topOrdersToUpdate.length);
           console.log(new Date(), 'Ids to update in this cycle', Object.keys(ids).length);
           async.eachSeries(
-            ids,
+            Object.keys(ids),
             (id, callbackEach) => {
               if (API.ordersCache[id]) {
                 API.updateOrder(API.ordersCache[id], (err) => {
-                  // console.log(id, err);
                   if (err) delete API.ordersCache[id];
                   callbackEach(null);
                 });
