@@ -13,6 +13,7 @@ let topOrders = [];
 let ordersByPair = {};
 const lookback = (86400 * 1) / 14;
 const examinedEvents = {};
+let eventsCache = {};
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -32,12 +33,12 @@ app.get('/returnTicker', (req, res) => {
 });
 
 app.get('/events', (req, res) => {
-  const result = { events: API.eventsCache, blockNumber: API.blockTimeSnapshot.blockNumber };
+  const result = { events: eventsCache, blockNumber: API.blockTimeSnapshot.blockNumber };
   res.json(result);
 });
 
 app.get('/events/:nonce', (req, res) => {
-  const result = { events: API.eventsCache, blockNumber: API.blockTimeSnapshot.blockNumber };
+  const result = { events: eventsCache, blockNumber: API.blockTimeSnapshot.blockNumber };
   const eventsHash = sha256(JSON.stringify(result.events ? result.events : ''));
   const nonce = `events${req.params.nonce}`;
   if (hashes[nonce] !== eventsHash) {
@@ -51,9 +52,9 @@ app.get('/events/:nonce', (req, res) => {
 app.get('/events/:nonce/:since', (req, res) => {
   const since = req.params.since;
   const events = {};
-  Object.keys(API.eventsCache).forEach((id) => {
-    if (API.eventsCache[id].blockNumber >= since) {
-      events[id] = API.eventsCache[id];
+  Object.keys(eventsCache).forEach((id) => {
+    if (eventsCache[id].blockNumber >= since) {
+      events[id] = eventsCache[id];
     }
   });
   const result = { events, blockNumber: API.blockTimeSnapshot.blockNumber };
@@ -80,7 +81,7 @@ app.get('/orders/:tokenA/:tokenB', (req, res) => {
   const { tokenA, tokenB } = req.params;
   const pair = `${tokenA}/${tokenB}`;
   if (!ordersByPair[pair]) {
-    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB);
+    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB, 25);
   }
   const result = { orders: ordersByPair[pair], blockNumber: API.blockTimeSnapshot.blockNumber };
   res.json(result);
@@ -120,7 +121,7 @@ app.get('/orders/:nonce/:tokenA/:tokenB', (req, res) => {
   const nonce = `ordersPair${req.params.nonce}`;
   const pair = `${tokenA}/${tokenB}`;
   if (!ordersByPair[pair]) {
-    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB);
+    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB, 25);
   }
   const result = { orders: ordersByPair[pair], blockNumber: API.blockTimeSnapshot.blockNumber };
   const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
@@ -152,18 +153,6 @@ app.use((err, req, res, next) => {
   res.status(500);
   res.json({ error: 'An error occurred.' });
 });
-
-function shuffle(array) {
-  let counter = array.length;
-  while (counter > 0) {
-    const index = Math.floor(Math.random() * counter);
-    counter -= 1;
-    const temp = array[counter];
-    array[counter] = array[index]; // eslint-disable-line no-param-reassign
-    array[index] = temp; // eslint-disable-line no-param-reassign
-  }
-  return array;
-}
 
 function updateOrders() {
   // refresh stale orders
@@ -316,64 +305,68 @@ function updateData() {
     API.logs((errLogs) => {
       if (!errLogs && !errBlockNumber) {
         // delete old events
-        async.each(
-          Object.keys(API.eventsCache),
-          (key, callbackEach) => {
-            if (API.eventsCache[key].blockNumber < blockNumber - lookback) {
-              delete API.eventsCache[key];
-            }
-            callbackEach(null);
-          },
-          () => {
-            async.parallel(
-              [
-                (callback) => {
-                  API.getTrades((err, result) => {
-                    if (!err) {
-                      const now = new Date();
-                      const trades = result.trades
-                        .map((x) => {
-                          if (x.token && x.base && x.base.name === 'ETH') {
-                            if (x.amount > 0) {
-                              return {
-                                pair: `${x.token.name}-${x.base.name}`,
-                                rate: x.price,
-                                amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)),
-                                type: 'buy',
-                                date: API.blockTime(x.blockNumber),
-                              };
-                            }
-                            return {
-                              token: `${x.token.name}-${x.base.name}`,
-                              rate: x.price,
-                              amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)),
-                              type: 'sell',
-                              date: API.blockTime(x.blockNumber),
-                            };
-                          }
-                          return undefined;
-                        })
-                        .filter(x => x && now - x.date < 86400 * 10 * 1000);
-                      trades.sort((a, b) => b.date - a.date);
-                      tradesData = { updated: Date.now(), result: trades };
-                    }
-                    callback(null, undefined);
-                  });
-                },
-                (callback) => {
-                  API.returnTicker((err, result) => {
-                    if (!err) {
-                      returnTickerData = { updated: Date.now(), result };
-                    }
-                    callback(null, undefined);
-                  });
-                },
-              ],
-              () => {
-                topOrders = API.getTopOrders();
-                ordersByPair = {};
-                setTimeout(updateData, 10 * 1000);
+        Object.keys(API.eventsCache).forEach((key) => {
+          if (API.eventsCache[key].blockNumber < blockNumber - lookback) {
+            delete API.eventsCache[key];
+          }
+        });
+        const eventsCacheFiltered = {};
+        Object.keys(API.eventsCache).sort((a, b) =>
+          API.eventsCache[b].blockNumber - API.eventsCache[a].blockNumber ||
+          API.eventsCache[b].logIndex - API.eventsCache[a].logIndex)
+        .slice(0, 1000)
+        .forEach((id) => {
+          eventsCacheFiltered[id] = API.eventsCache[id];
+        });
+        eventsCache = eventsCacheFiltered;
+        async.parallel(
+          [
+            (callback) => {
+              API.getTrades((err, result) => {
+                if (!err) {
+                  const now = new Date();
+                  const trades = result.trades
+                    .map((x) => {
+                      if (x.token && x.base && x.base.name === 'ETH') {
+                        if (x.amount > 0) {
+                          return {
+                            pair: `${x.token.name}-${x.base.name}`,
+                            rate: x.price,
+                            amount: API.utility.weiToEth(x.amount, API.getDivisor(x.token)),
+                            type: 'buy',
+                            date: API.blockTime(x.blockNumber),
+                          };
+                        }
+                        return {
+                          token: `${x.token.name}-${x.base.name}`,
+                          rate: x.price,
+                          amount: API.utility.weiToEth(-x.amount, API.getDivisor(x.token)),
+                          type: 'sell',
+                          date: API.blockTime(x.blockNumber),
+                        };
+                      }
+                      return undefined;
+                    })
+                    .filter(x => x && now - x.date < 86400 * 10 * 1000);
+                  trades.sort((a, b) => b.date - a.date);
+                  tradesData = { updated: Date.now(), result: trades };
+                }
+                callback(null, undefined);
               });
+            },
+            (callback) => {
+              API.returnTicker((err, result) => {
+                if (!err) {
+                  returnTickerData = { updated: Date.now(), result };
+                }
+                callback(null, undefined);
+              });
+            },
+          ],
+          () => {
+            topOrders = API.getTopOrders();
+            ordersByPair = {};
+            setTimeout(updateData, 10 * 1000);
           });
       } else {
         setTimeout(updateData, 10 * 1000);
