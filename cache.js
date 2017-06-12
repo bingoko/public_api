@@ -25,11 +25,24 @@ app.get('/', (req, res) => {
   res.redirect('https://etherdelta.github.io');
 });
 
-app.get('/returnTicker', (req, res) => {
+function fetch(page, callback) {
   const now = (new Date()).getTime();
-  const page = '/returnTicker';
   if (pages[page] && now < pages[page].updated + interval) {
-    res.json(pages[page].data);
+    callback(null, pages[page].data);
+  } else if (pages[page]) {
+    callback(null, pages[page]);
+    pages[page].updated = (new Date()).getTime();
+    request(`${api}${page}`, (error, response, body) => {
+      try {
+        const data = JSON.parse(body);
+        pages[page] = {
+          data,
+          updated: (new Date()).getTime(),
+        };
+      } catch (err) {
+        // do nothing
+      }
+    });
   } else {
     request(`${api}${page}`, (error, response, body) => {
       try {
@@ -38,328 +51,188 @@ app.get('/returnTicker', (req, res) => {
           data,
           updated: (new Date()).getTime(),
         };
-        res.json(pages[page].data);
+        callback(null, data);
       } catch (err) {
-        res.status(500);
-        res.json('error');
+        callback('error', null);
       }
     });
   }
+}
+
+app.get('/returnTicker', (req, res) => {
+  const page = '/returnTicker';
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
+    } else {
+      res.json(result);
+    }
+  });
 });
 
 app.get('/events', (req, res) => {
-  const now = (new Date()).getTime();
   const page = '/events';
-  if (pages[page] && now < pages[page].updated + interval) {
-    res.json(pages[page].data);
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        res.json(pages[page].data);
-      } catch (err) {
-        res.status(500);
-        res.json('error');
-      }
-    });
-  }
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
+    } else {
+      res.json(result);
+    }
+  });
 });
 
 app.get('/events/:nonce', (req, res) => {
-  const now = (new Date()).getTime();
   const page = '/events';
-  if (pages[page] && now < pages[page].updated + interval) {
-    const result = pages[page].data;
-    const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-    const nonce = `${page}/${req.params.nonce}`;
-    if (hashes[nonce] !== hash) {
-      hashes[nonce] = hash;
-      res.json(result);
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
     } else {
-      res.json(undefined);
-    }
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        const result = pages[page].data;
-        const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-        const nonce = `${page}/${req.params.nonce}`;
-        if (hashes[nonce] !== hash) {
-          hashes[nonce] = hash;
-          res.json(result);
-        } else {
-          res.json(undefined);
-        }
-      } catch (err) {
-        res.status(500);
-        res.json('error');
+      const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
+      const nonce = `${page}/${req.params.nonce}`;
+      if (hashes[nonce] !== hash) {
+        hashes[nonce] = hash;
+        res.json(result);
+      } else {
+        res.json(undefined);
       }
-    });
-  }
+    }
+  });
 });
 
 app.get('/events/:nonce/:since', (req, res) => {
   const since = req.params.since;
-  const now = (new Date()).getTime();
   const page = '/events';
-  if (pages[page] && now < pages[page].updated + interval) {
-    const initialEvents = pages[page].data.events;
-    const filteredEvents = {};
-    Object.keys(initialEvents).forEach((x) => {
-      if (initialEvents[x].blockNumber >= since) {
-        filteredEvents[x] = initialEvents[x];
-      }
-    });
-    const result = { events: filteredEvents, blockNumber: pages[page].data.blockNumber };
-    const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-    const nonce = `${page}/since/${req.params.nonce}`;
-    if (hashes[nonce] !== hash) {
-      hashes[nonce] = hash;
-      res.json(result);
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
     } else {
-      res.json(undefined);
-    }
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        const initialEvents = pages[page].data.events;
-        const filteredEvents = {};
-        Object.keys(initialEvents).forEach((x) => {
-          if (initialEvents[x].blockNumber >= since) {
-            filteredEvents[x] = initialEvents[x];
-          }
-        });
-        const result = { events: filteredEvents, blockNumber: pages[page].data.blockNumber };
-        const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-        const nonce = `${page}/since/${req.params.nonce}`;
-        if (hashes[nonce] !== hash) {
-          hashes[nonce] = hash;
-          res.json(result);
-        } else {
-          res.json(undefined);
+      const initialEvents = result.events || {};
+      const filteredEvents = {};
+      Object.keys(initialEvents).forEach((x) => {
+        if (initialEvents[x].blockNumber >= since) {
+          filteredEvents[x] = initialEvents[x];
         }
-      } catch (err) {
-        res.status(500);
-        res.json('error');
+      });
+      const data = { events: filteredEvents, blockNumber: pages[page].data.blockNumber };
+      const hash = sha256(JSON.stringify(data ? data : '')); // eslint-disable-line no-unneeded-ternary
+      const nonce = `${page}/since/${req.params.nonce}`;
+      if (hashes[nonce] !== hash) {
+        hashes[nonce] = hash;
+        res.json(result);
+      } else {
+        res.json(undefined);
       }
-    });
-  }
+    }
+  });
 });
 
 app.get('/trades', (req, res) => {
-  const now = (new Date()).getTime();
   const page = '/trades';
-  if (pages[page] && now < pages[page].updated + interval) {
-    res.json(pages[page].data);
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        res.json(pages[page].data);
-      } catch (err) {
-        res.status(500);
-        res.json('error');
-      }
-    });
-  }
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
+    } else {
+      res.json(result);
+    }
+  });
 });
 
 app.get('/orders', (req, res) => {
-  const now = (new Date()).getTime();
   const page = '/orders';
-  if (pages[page] && now < pages[page].updated + interval) {
-    res.json(pages[page].data);
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        res.json(pages[page].data);
-      } catch (err) {
-        res.status(500);
-        res.json('error');
-      }
-    });
-  }
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
+    } else {
+      res.json(result);
+    }
+  });
 });
 
 app.get('/orders/:tokenA/:tokenB', (req, res) => {
-  const now = (new Date()).getTime();
   const page = `/orders/${req.params.tokenA}/${req.params.tokenB}`;
-  if (pages[page] && now < pages[page].updated + interval) {
-    res.json(pages[page].data);
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        res.json(pages[page].data);
-      } catch (err) {
-        res.status(500);
-        res.json('error');
-      }
-    });
-  }
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
+    } else {
+      res.json(result);
+    }
+  });
 });
 
 app.get('/topOrders', (req, res) => {
-  const now = (new Date()).getTime();
   const page = '/topOrders';
-  if (pages[page] && now < pages[page].updated + interval) {
-    res.json(pages[page].data);
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        res.json(pages[page].data);
-      } catch (err) {
-        res.status(500);
-        res.json('error');
-      }
-    });
-  }
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
+    } else {
+      res.json(result);
+    }
+  });
 });
 
 app.get('/topOrders/:nonce', (req, res) => {
-  const now = (new Date()).getTime();
   const page = '/topOrders';
-  if (pages[page] && now < pages[page].updated + interval) {
-    const result = pages[page].data;
-    const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-    const nonce = `${page}/${req.params.nonce}`;
-    if (hashes[nonce] !== hash) {
-      hashes[nonce] = hash;
-      res.json(result);
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
     } else {
-      res.json(undefined);
-    }
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        const result = pages[page].data;
-        const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-        const nonce = `${page}/${req.params.nonce}`;
-        if (hashes[nonce] !== hash) {
-          hashes[nonce] = hash;
-          res.json(result);
-        } else {
-          res.json(undefined);
-        }
-      } catch (err) {
-        res.status(500);
-        res.json('error');
+      const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
+      const nonce = `${page}/${req.params.nonce}`;
+      if (hashes[nonce] !== hash) {
+        hashes[nonce] = hash;
+        res.json(result);
+      } else {
+        res.json(undefined);
       }
-    });
-  }
+    }
+  });
 });
 
 app.get('/orders/:nonce', (req, res) => {
-  const now = (new Date()).getTime();
   const page = '/orders';
-  if (pages[page] && now < pages[page].updated + interval) {
-    const result = pages[page].data;
-    const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-    const nonce = `${page}/${req.params.nonce}`;
-    if (hashes[nonce] !== hash) {
-      hashes[nonce] = hash;
-      res.json(result);
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
     } else {
-      res.json(undefined);
-    }
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        const result = pages[page].data;
-        const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-        const nonce = `${page}/${req.params.nonce}`;
-        if (hashes[nonce] !== hash) {
-          hashes[nonce] = hash;
-          res.json(result);
-        } else {
-          res.json(undefined);
-        }
-      } catch (err) {
-        res.status(500);
-        res.json('error');
+      const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
+      const nonce = `${page}/${req.params.nonce}`;
+      if (hashes[nonce] !== hash) {
+        hashes[nonce] = hash;
+        res.json(result);
+      } else {
+        res.json(undefined);
       }
-    });
-  }
+    }
+  });
 });
 
 app.get('/orders/:nonce/:tokenA/:tokenB', (req, res) => {
-  const now = (new Date()).getTime();
   const page = `/orders/${req.params.tokenA}/${req.params.tokenB}`;
-  if (pages[page] && now < pages[page].updated + interval) {
-    const result = pages[page].data;
-    const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-    const nonce = `${page}/${req.params.nonce}`;
-    if (hashes[nonce] !== hash) {
-      hashes[nonce] = hash;
-      res.json(result);
+  fetch(page, (err, result) => {
+    if (err) {
+      res.status(500);
+      res.json('error');
     } else {
-      res.json(undefined);
-    }
-  } else {
-    request(`${api}${page}`, (error, response, body) => {
-      try {
-        const data = JSON.parse(body);
-        pages[page] = {
-          data,
-          updated: (new Date()).getTime(),
-        };
-        const result = pages[page].data;
-        const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
-        const nonce = `${page}/${req.params.nonce}`;
-        if (hashes[nonce] !== hash) {
-          hashes[nonce] = hash;
-          res.json(result);
-        } else {
-          res.json(undefined);
-        }
-      } catch (err) {
-        res.status(500);
-        res.json('error');
+      const hash = sha256(JSON.stringify(result ? result : '')); // eslint-disable-line no-unneeded-ternary
+      const nonce = `${page}/${req.params.nonce}`;
+      if (hashes[nonce] !== hash) {
+        hashes[nonce] = hash;
+        res.json(result);
+      } else {
+        res.json(undefined);
       }
-    });
-  }
+    }
+  });
 });
 
 app.post('/message', (req, res) => {
