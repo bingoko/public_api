@@ -81,7 +81,7 @@ app.get('/orders/:tokenA/:tokenB', (req, res) => {
   const { tokenA, tokenB } = req.params;
   const pair = `${tokenA}/${tokenB}`;
   if (!ordersByPair[pair]) {
-    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB, 25);
+    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB, 100);
   }
   const result = { orders: ordersByPair[pair], blockNumber: API.blockTimeSnapshot.blockNumber };
   res.json(result);
@@ -121,7 +121,7 @@ app.get('/orders/:nonce/:tokenA/:tokenB', (req, res) => {
   const nonce = `ordersPair${req.params.nonce}`;
   const pair = `${tokenA}/${tokenB}`;
   if (!ordersByPair[pair]) {
-    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB, 25);
+    ordersByPair[pair] = API.getOrdersByPair(tokenA, tokenB, 100);
   }
   const result = { orders: ordersByPair[pair], blockNumber: API.blockTimeSnapshot.blockNumber };
   const ordersHash = sha256(JSON.stringify(result.orders ? result.orders : ''));
